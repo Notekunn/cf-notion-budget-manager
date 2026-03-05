@@ -1,17 +1,19 @@
 # Project Overview + PDR
 
 Last updated: 2026-03-05
-Version: 0.1.0-phase-1
+Version: 0.2.0-phase-2
 
 ## Project Overview
 
 `notion-budget-manager` is a Cloudflare Worker project intended to receive SePay webhook events and sync transactions into a Notion database.
 
 Current implemented state (verified in code):
-- Worker scaffold exists.
-- `src/index.ts` returns `Hello World!`.
-- `wrangler.toml` configured with `nodejs_compat`.
-- Notion SDK dependency installed.
+- Worker scaffold exists with strict TypeScript + Wrangler config.
+- `src/index.ts` handles `POST /webhook` only.
+- API key, content-type, JSON parse, and payload shape validation are implemented.
+- `upsertTransaction(payload, env)` is wired and guarded with `500` catch.
+- `src/notion.ts` is still a phase-3 placeholder (no real Notion writes yet).
+- Test suite passes (`11` tests).
 
 ## Product Scope
 
@@ -29,13 +31,14 @@ Out of scope (for now):
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-1 | Worker scaffold with Wrangler + TypeScript | In progress (mostly done) |
-| FR-2 | Runtime secrets defined in worker Env interface are configured in Cloudflare | Pending |
-| FR-3 | `POST /webhook` route handling | Pending |
-| FR-4 | Verify inbound API key auth header | Pending |
-| FR-5 | Parse SePay JSON payload | Pending |
-| FR-6 | Upsert transaction in Notion DB by `Transaction ID` | Pending |
-| FR-7 | Return status codes for auth/body/upsert failures | Pending |
+| FR-1 | Worker scaffold with Wrangler + TypeScript | Completed |
+| FR-2 | Runtime secrets defined in worker Env interface are configured in Cloudflare | Pending runtime verification |
+| FR-3 | `POST /webhook` route handling | Completed |
+| FR-4 | Verify inbound API key auth header | Completed |
+| FR-5 | Parse + validate SePay JSON payload | Completed |
+| FR-6 | Upsert transaction in Notion DB by `Transaction ID` | In progress (handler wired, Notion logic pending) |
+| FR-7 | Return status codes for auth/body/upsert failures | Completed |
+| FR-8 | Automated tests for webhook route/status contract | Completed (11 passing tests) |
 
 ## Non-Functional Requirements
 
@@ -49,10 +52,12 @@ Out of scope (for now):
 
 ## Acceptance Criteria
 
-Phase 1 done when:
-1. `wrangler dev` starts without error.
-2. `wrangler.toml` has `compatibility_flags = ["nodejs_compat"]`.
-3. Required secrets are set in Cloudflare.
+Phase 2 done when:
+1. `POST /webhook` with wrong API key returns `401`.
+2. `POST /webhook` with malformed or invalid body returns `400`.
+3. Non-`POST /webhook` requests return `404`.
+4. Downstream upsert failure returns `500`.
+5. Valid request returns `200` with `{ "success": true }`.
 
 Overall product done when:
 1. Valid `POST /webhook` updates/creates a Notion row.
@@ -79,3 +84,4 @@ Overall product done when:
 | Date | Change |
 |---|---|
 | 2026-03-05 | Initial PDR created from Phase plan + scaffold |
+| 2026-03-05 | Updated for phase-2 completion: webhook route/auth/validation/error handling implemented; phase-3 Notion upsert remains pending |

@@ -5,40 +5,42 @@ Source snapshot: `repomix-output.xml` (generated via `repomix`)
 
 ## Repo Snapshot
 
-- Total files packed: 18
+- Total files packed: 31
 - Main runtime: Cloudflare Workers + TypeScript
 - Main deploy tool: Wrangler
-- Main integration target (planned): Notion API
+- Main integration target: Notion API
 
 ## Current Implementation State
 
 - Worker exists and compiles with Worker types.
-- Current response behavior: returns `Hello World!`.
-- Notion SDK installed but not yet used in runtime code.
-- Test scaffold validates current hello-world behavior.
+- Current route behavior: accepts only `POST /webhook`.
+- Request pipeline implemented: API key check -> JSON/content-type + payload validation -> upsert handoff.
+- Notion SDK installed; `upsertTransaction()` is wired but still placeholder in `src/notion.ts`.
+- Test suite validates webhook status contract (`11` passing tests).
 
 ## Key Files
 
 | File | Purpose |
 |---|---|
-| `src/index.ts` | Worker entrypoint and fetch handler |
+| `src/index.ts` | Webhook route orchestration and response codes |
+| `src/sepay.ts` | SePay payload typing, payload guard, API key verification |
+| `src/notion.ts` | Notion upsert interface (phase-3 stub) |
 | `wrangler.toml` | Worker runtime/deploy config |
 | `package.json` | scripts + dependencies |
 | `tsconfig.json` | strict TS compiler settings |
 | `vitest.config.mts` | test config for worker pool |
-| `test/index.spec.ts` | unit-style and integration-style tests |
+| `test/index.spec.ts` | unit-style and integration-style webhook tests |
 | `plans/260305-0812-sepay-webhook-notion/*` | implementation plan phases |
 
-## Planned System Direction
+## Remaining Scope
 
-- Add webhook route (`POST /webhook`).
-- Verify SePay API key via request auth header.
-- Upsert transaction data to existing Notion DB.
-- Return status-based responses for auth/body/upsert errors.
+- Implement real Notion query/create/update by `Transaction ID`.
+- Add property mapping from SePay payload to Notion schema.
+- Validate end-to-end webhook flow on deployed Worker URL.
 
 ## Environment Keys (Expected)
 
-- three worker env keys defined in `src/index.ts`.
+- Three Worker env keys are declared in `src/index.ts` (`Env` interface).
 
 ## Technical Notes
 

@@ -5,28 +5,34 @@ Last updated: 2026-03-05
 ## Current Architecture (Implemented)
 
 ```text
-HTTP Request -> Cloudflare Worker (src/index.ts) -> "Hello World!"
+SePay -> POST /webhook -> Cloudflare Worker (src/index.ts)
+                          |- verify Authorization: Apikey <key>
+                          |- validate Content-Type + parse JSON
+                          |- validate payload shape (src/sepay.ts)
+                          |- call upsertTransaction(payload, env)
+                          `- return status 200/400/401/404/500
 ```
 
 Components currently present:
-- Worker entrypoint: `src/index.ts`
+- Worker entrypoint + request orchestration: `src/index.ts`
+- SePay helpers + payload typing/guard: `src/sepay.ts`
+- Notion handoff module (stub): `src/notion.ts`
 - Worker config: `wrangler.toml`
 - Type configuration: `tsconfig.json`, `worker-configuration.d.ts`
-- Test scaffold: `test/index.spec.ts`
+- Test coverage for webhook status paths: `test/index.spec.ts`
 
-## Target Architecture (Planned)
+## Pending Architecture (Phase 3/4)
 
 ```text
-SePay -> POST /webhook -> Worker
-                          |- verify apikey header
-                          |- parse payload JSON
-                          |- Notion query by Transaction ID
-                          `- Notion create/update page
+SePay -> POST /webhook -> Worker -> Notion API
+                                  |- query by Transaction ID
+                                  |- create page when missing
+                                  `- update page when existing
 ```
 
-Planned modules (not implemented yet):
-- `src/sepay.ts` for payload typing + API key verification.
-- `src/notion.ts` for query + upsert logic.
+Pending implementation:
+- Real Notion query/create/update in `src/notion.ts`.
+- End-to-end deploy + live webhook validation.
 
 ## Runtime + Infrastructure
 
@@ -45,32 +51,26 @@ Guideline:
 
 ## Request Handling Model
 
-Current:
-- All requests receive `200` with `Hello World!`.
+Implemented in `src/index.ts`:
+- `POST /webhook` only; all other routes/methods return `404`.
+- Auth failure returns `401`.
+- Invalid content-type, malformed JSON, or invalid payload shape return `400`.
+- Downstream upsert throw returns `500`.
+- Success returns `200` with JSON `{ "success": true }`.
 
-Planned:
-- `POST /webhook` only.
-- Auth failure: `401`.
-- Invalid body: `400`.
-- Internal/upsert error: `500`.
-- Success: `200`.
+## Data Contract Status
 
-## Data Mapping (Planned)
+Implemented:
+- Worker expects SePay payload with typed fields (`id`, `gateway`, `transactionDate`, `accountNumber`, `subAccount`, `code`, `content`, `transferType`, `transferAmount`, `accumulated`, `referenceCode`, `description`).
+- `transferType` constrained to `"IN" | "OUT"`.
 
-Target dedup key:
-- SePay `id` mapped to a transaction-id field in Notion database.
-
-Target mapping defined in plan docs:
-- transfer content/title, amount, type, date, account, gateway, reference, sub-account fields.
+Pending:
+- Notion property mapping + transaction-id dedup logic still in Phase 3.
 
 ## Testing Architecture
 
 - Framework: Vitest with `@cloudflare/vitest-pool-workers`.
-- Two scaffold tests exist:
-  - direct unit-style call to `worker.fetch`
-  - integration-style request via `SELF.fetch`
-
-## Open Architecture Decisions
-
-- Whether to add queue/retry buffering beyond sender retries.
-- Whether to add request signature validation beyond API key header.
+- Current coverage: 11 passing tests for `404/401/400/500/200` paths.
+- Test styles:
+  - unit-style calls to `worker.fetch`
+  - integration-style requests via `SELF.fetch`
