@@ -1,6 +1,6 @@
 # Phase 2: SePay Webhook Handler + Verification
 
-**Status:** pending
+**Status:** in-progress
 **Priority:** high
 **Effort:** ~45min
 **Blocked by:** Phase 1
@@ -116,7 +116,7 @@ interface Env {
 
 - [ ] Create `src/sepay.ts` with types + `verifyApiKey()`
 - [ ] Create `src/index.ts` with fetch handler
-- [ ] Define `Env` interface
+- [x] Define `Env` interface
 - [ ] Test 401 on wrong apikey with `wrangler dev`
 - [ ] Test 400 on malformed body
 

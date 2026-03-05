@@ -1,7 +1,9 @@
 ---
 title: SePay Webhook → Cloudflare Worker → Notion
 status: in-progress
+progress: 23
 created: 2026-03-05
+updated: 2026-03-05
 brainstorm: plans/reports/brainstorm-260305-0812-sepay-webhook-notion.md
 ---
 
@@ -55,12 +57,12 @@ package.json
 
 ## Phases
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| [Phase 1](./phase-01-project-setup.md) | Project setup (Wrangler, deps, secrets) | in-progress |
-| [Phase 2](./phase-02-sepay-handler.md) | SePay webhook handler + verification | pending |
-| [Phase 3](./phase-03-notion-upsert.md) | Notion query + upsert logic | pending |
-| [Phase 4](./phase-04-integration-deploy.md) | Integration, error handling, deploy | pending |
+| Phase | Description | Status | Progress |
+|-------|-------------|--------|----------|
+| [Phase 1](./phase-01-project-setup.md) | Project setup (Wrangler, deps, secrets) | in-progress | 4/5 (80%) |
+| [Phase 2](./phase-02-sepay-handler.md) | SePay webhook handler + verification | in-progress | 1/5 (20%) |
+| [Phase 3](./phase-03-notion-upsert.md) | Notion query + upsert logic | pending | 0/6 (0%) |
+| [Phase 4](./phase-04-integration-deploy.md) | Integration, error handling, deploy | pending | 0/6 (0%) |
 
 ## Dependencies
 
