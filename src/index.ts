@@ -45,7 +45,8 @@ export default {
 
 		try {
 			await upsertTransaction(payload, env);
-		} catch {
+		} catch (e) {
+			console.error('Error occurred while upserting transaction:', e);
 			return new Response('Internal Server Error', { status: 500 });
 		}
 

@@ -50,13 +50,11 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(404);
 	});
-
 	it('returns 404 for non-POST /webhook', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', { method: 'GET' });
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(404);
 	});
-
 	it('returns 401 for wrong apikey', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', {
 			method: 'POST',
@@ -69,7 +67,6 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(401);
 	});
-
 	it('returns 401 before body parsing when auth invalid', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', {
 			method: 'POST',
@@ -82,7 +79,6 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(401);
 	});
-
 	it('returns 400 for non-json content type', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', {
 			method: 'POST',
@@ -95,7 +91,6 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(400);
 	});
-
 	it('returns 400 for malformed body', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', {
 			method: 'POST',
@@ -108,7 +103,6 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(400);
 	});
-
 	it('returns 400 for invalid payload shape', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', {
 			method: 'POST',
@@ -121,7 +115,30 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(400);
 	});
-
+	it('returns 400 for invalid transactionDate format', async () => {
+		const request = new IncomingRequest('http://example.com/webhook', {
+			method: 'POST',
+			headers: {
+				Authorization: `Apikey ${testEnv.SEPAY_API_KEY}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ ...validPayload, transactionDate: 'invalid-date' }),
+		});
+		const response = await fetchUnit(request);
+		expect(response.status).toBe(400);
+	});
+	it('returns 400 for impossible ISO transactionDate', async () => {
+		const request = new IncomingRequest('http://example.com/webhook', {
+			method: 'POST',
+			headers: {
+				Authorization: `Apikey ${testEnv.SEPAY_API_KEY}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ ...validPayload, transactionDate: '2026-02-29T10:00:00+07:00' }),
+		});
+		const response = await fetchUnit(request);
+		expect(response.status).toBe(400);
+	});
 	it('returns 500 when downstream upsert fails', async () => {
 		upsertTransactionMock.mockRejectedValueOnce(new Error('notion-failed'));
 		const request = new IncomingRequest('http://example.com/webhook', {
@@ -135,7 +152,6 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(500);
 	});
-
 	it('returns 200 for valid apikey and payload', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', {
 			method: 'POST',
@@ -150,12 +166,22 @@ describe('SePay webhook worker', () => {
 		expect(await response.json()).toEqual({ success: true });
 		expect(upsertTransactionMock).toHaveBeenCalledOnce();
 	});
-
+	it('accepts ISO transactionDate payload', async () => {
+		const request = new IncomingRequest('http://example.com/webhook', {
+			method: 'POST',
+			headers: {
+				Authorization: `Apikey ${testEnv.SEPAY_API_KEY}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ ...validPayload, transactionDate: '2026-03-05T10:00:00+07:00' }),
+		});
+		const response = await fetchUnit(request);
+		expect(response.status).toBe(200);
+	});
 	it('returns 404 on unknown path (integration style)', async () => {
 		const response = await SELF.fetch('https://example.com/unknown-path', { method: 'POST' });
 		expect(response.status).toBe(404);
 	});
-
 	it('returns 401 on /webhook without auth (integration style)', async () => {
 		const response = await SELF.fetch('https://example.com/webhook', {
 			method: 'POST',

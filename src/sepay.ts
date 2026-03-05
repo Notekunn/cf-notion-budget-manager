@@ -18,8 +18,65 @@ function isStringOrNull(value: unknown): value is string | null {
 }
 
 function isTransferType(value: unknown): value is SepayWebhookPayload['transferType'] {
-	const upperValue = typeof value === 'string' ? value.toUpperCase() : '';
-	return upperValue === 'IN' || upperValue === 'OUT';
+	const valueUpper = typeof value === 'string' ? value.toUpperCase() : '';
+	return valueUpper === 'IN' || valueUpper === 'OUT';
+}
+
+function hasValidDateTimeParts(year: number, month: number, day: number, hour: number, minute: number, second: number): boolean {
+	if (hour > 23 || minute > 59 || second > 59) {
+		return false;
+	}
+
+	const parsed = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+	return (
+		parsed.getUTCFullYear() === year &&
+		parsed.getUTCMonth() + 1 === month &&
+		parsed.getUTCDate() === day &&
+		parsed.getUTCHours() === hour &&
+		parsed.getUTCMinutes() === minute &&
+		parsed.getUTCSeconds() === second
+	);
+}
+
+function isValidTransactionDate(value: unknown): value is string {
+	if (typeof value !== 'string') {
+		return false;
+	}
+
+	const sepayParts = value.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+	if (sepayParts) {
+		const [, yearPart, monthPart, dayPart, hourPart, minutePart, secondPart] = sepayParts;
+		const year = Number(yearPart);
+		const month = Number(monthPart);
+		const day = Number(dayPart);
+		const hour = Number(hourPart);
+		const minute = Number(minutePart);
+		const second = Number(secondPart);
+
+		return hasValidDateTimeParts(year, month, day, hour, minute, second);
+	}
+
+	const isoParts = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:([+-])(\d{2}):(\d{2})|Z)?$/);
+	if (!isoParts) {
+		return false;
+	}
+
+	const [, yearPart, monthPart, dayPart, hourPart, minutePart, secondPart, , tzHourPart, tzMinutePart] = isoParts;
+	const year = Number(yearPart);
+	const month = Number(monthPart);
+	const day = Number(dayPart);
+	const hour = Number(hourPart);
+	const minute = Number(minutePart);
+	const second = Number(secondPart);
+	if (!hasValidDateTimeParts(year, month, day, hour, minute, second)) {
+		return false;
+	}
+
+	if (!tzHourPart || !tzMinutePart) {
+		return true;
+	}
+
+	return Number(tzHourPart) <= 23 && Number(tzMinutePart) <= 59;
 }
 
 export function isSepayWebhookPayload(value: unknown): value is SepayWebhookPayload {
@@ -33,7 +90,7 @@ export function isSepayWebhookPayload(value: unknown): value is SepayWebhookPayl
 		typeof payload.id === 'number' &&
 		Number.isFinite(payload.id) &&
 		typeof payload.gateway === 'string' &&
-		typeof payload.transactionDate === 'string' &&
+		isValidTransactionDate(payload.transactionDate) &&
 		typeof payload.accountNumber === 'string' &&
 		isStringOrNull(payload.subAccount) &&
 		isStringOrNull(payload.code) &&
