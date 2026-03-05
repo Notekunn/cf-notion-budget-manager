@@ -1,7 +1,7 @@
 # Project Overview + PDR
 
 Last updated: 2026-03-05
-Version: 0.2.0-phase-2
+Version: 0.3.0-phase-3
 
 ## Project Overview
 
@@ -12,8 +12,12 @@ Current implemented state (verified in code):
 - `src/index.ts` handles `POST /webhook` only.
 - API key, content-type, JSON parse, and payload shape validation are implemented.
 - `upsertTransaction(payload, env)` is wired and guarded with `500` catch.
-- `src/notion.ts` is still a phase-3 placeholder (no real Notion writes yet).
-- Test suite passes (`11` tests).
+- `src/notion.ts` implements real Notion upsert:
+  - resolve data source id from data source id or database id
+  - query existing rows by `Transaction ID` (paginated)
+  - update all matches or create when no match
+  - serialize concurrent upserts by transaction id in memory
+- Test suite passes (`18` tests).
 
 ## Product Scope
 
@@ -36,9 +40,9 @@ Out of scope (for now):
 | FR-3 | `POST /webhook` route handling | Completed |
 | FR-4 | Verify inbound API key auth header | Completed |
 | FR-5 | Parse + validate SePay JSON payload | Completed |
-| FR-6 | Upsert transaction in Notion DB by `Transaction ID` | In progress (handler wired, Notion logic pending) |
+| FR-6 | Upsert transaction in Notion DB by `Transaction ID` | Completed |
 | FR-7 | Return status codes for auth/body/upsert failures | Completed |
-| FR-8 | Automated tests for webhook route/status contract | Completed (11 passing tests) |
+| FR-8 | Automated tests for webhook route/status contract | Completed (18 passing tests) |
 
 ## Non-Functional Requirements
 
@@ -52,15 +56,17 @@ Out of scope (for now):
 
 ## Acceptance Criteria
 
-Phase 2 done when:
+Phase 3 done when:
 1. `POST /webhook` with wrong API key returns `401`.
 2. `POST /webhook` with malformed or invalid body returns `400`.
 3. Non-`POST /webhook` requests return `404`.
 4. Downstream upsert failure returns `500`.
 5. Valid request returns `200` with `{ "success": true }`.
+6. Upsert updates existing Notion rows by `Transaction ID`.
+7. Upsert creates new Notion row when `Transaction ID` is missing.
 
 Overall product done when:
-1. Valid `POST /webhook` updates/creates a Notion row.
+1. Valid `POST /webhook` updates/creates a Notion row in deployed environment.
 2. Invalid API key returns `401`.
 3. Malformed JSON returns `400`.
 4. Notion failures return `500`.
@@ -85,3 +91,4 @@ Overall product done when:
 |---|---|
 | 2026-03-05 | Initial PDR created from Phase plan + scaffold |
 | 2026-03-05 | Updated for phase-2 completion: webhook route/auth/validation/error handling implemented; phase-3 Notion upsert remains pending |
+| 2026-03-05 | Updated for phase-3 completion: real Notion upsert implemented and tests now 18 passing |

@@ -12,8 +12,12 @@
   - `SepayWebhookPayload` interface
   - `verifyApiKey()` helper
   - `isSepayWebhookPayload()` type guard
-- `src/notion.ts` with `upsertTransaction()` handoff stub for Phase 3.
-- Webhook tests covering route/auth/body/downstream/success status paths (11 tests).
+- `src/notion.ts` full `upsertTransaction()` implementation:
+  - resolve data source from data source id or database id fallback
+  - query by `Transaction ID` with pagination
+  - update all matching pages or create when no match
+  - per-transaction in-memory queue to serialize concurrent upserts
+- `test/notion-upsert.spec.ts` with upsert behavior coverage (4 tests).
 
 ### Changed
 
@@ -23,6 +27,7 @@
   - `compatibility_date = "2026-03-01"`
   - `compatibility_flags = ["nodejs_compat"]`
 - Runtime dependency `@notionhq/client` added.
+- `src/notion.ts` now passes `fetch: globalThis.fetch.bind(globalThis)` into Notion client to prevent Cloudflare Workers `illegal invocation`.
 - `src/index.ts` replaced hello-world response with phase-2 webhook flow:
   - accept only `POST /webhook` (`404` otherwise)
   - verify `Authorization: Apikey <key>` (`401` on failure)
@@ -33,9 +38,8 @@
 ### Verified
 
 - `npx tsc --noEmit` passes.
-- `npm test -- --run` passes (`11/11` tests).
+- `npm test -- --run` passes (`18/18` tests).
 
 ### Pending Follow-ups
 
-- Implement real Notion query/create/update logic in `src/notion.ts`.
 - Validate full end-to-end flow with deployed Worker + live SePay webhook.
