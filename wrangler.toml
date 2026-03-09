@@ -9,4 +9,13 @@ enabled = true
 invocation_logs = true
 
 [vars]
-# Non-secret config here if needed
+# Non-secret config here if needed.
+# Secrets must be set via:
+# wrangler secret put NOTION_TOKEN
+# wrangler secret put NOTION_DB_ID
+# wrangler secret put NOTION_BUDGET_DB_ID
+# wrangler secret put NOTION_JARS_CONFIG_DB_ID
+# wrangler secret put SEPAY_API_KEY
+
+[triggers]
+crons = ["0 0 1 * *"]

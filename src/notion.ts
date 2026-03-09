@@ -1,13 +1,19 @@
-import { APIErrorCode, Client, isFullDatabase, isNotionClientError } from '@notionhq/client';
+import type { Client } from '@notionhq/client';
+import {
+	ensureMonthlyBudget,
+	linkTransactionToBudget,
+} from './budget-service';
+import { createNotionClient, resolveDataSourceId } from './notion-client';
 import type { SepayWebhookPayload } from './sepay';
 
 export interface NotionEnv {
 	NOTION_TOKEN: string;
 	NOTION_DB_ID: string;
+	NOTION_BUDGET_DB_ID: string;
+	NOTION_JARS_CONFIG_DB_ID: string;
 }
 
-const dataSourceIdCache = new Map<string, string>();
-const upsertQueue = new Map<string, Promise<void>>();
+const upsertQueue = new Map<string, Promise<string>>();
 
 function toNotionIsoDate(transactionDate: string): string {
 	const withTimeSeparator = transactionDate.includes('T') ? transactionDate : transactionDate.replace(' ', 'T');
@@ -66,60 +72,34 @@ async function findExistingPageIds(notion: Client, dataSourceId: string, txId: n
 	return pageIds;
 }
 
-async function resolveDataSourceId(notion: Client, databaseOrDataSourceId: string): Promise<string> {
-	const cachedDataSourceId = dataSourceIdCache.get(databaseOrDataSourceId);
-	if (cachedDataSourceId) {
-		return cachedDataSourceId;
-	}
-
-	try {
-		await notion.dataSources.retrieve({ data_source_id: databaseOrDataSourceId });
-		dataSourceIdCache.set(databaseOrDataSourceId, databaseOrDataSourceId);
-		return databaseOrDataSourceId;
-	} catch (error: unknown) {
-		const canFallbackToDatabaseLookup =
-			isNotionClientError(error) &&
-			(error.code === APIErrorCode.ObjectNotFound ||
-				error.code === APIErrorCode.ValidationError ||
-				error.code === APIErrorCode.InvalidRequest);
-		if (!canFallbackToDatabaseLookup) {
-			throw error;
-		}
-	}
-
-	try {
-		const database = await notion.databases.retrieve({ database_id: databaseOrDataSourceId });
-		if (!isFullDatabase(database)) {
-			throw new Error('Unable to resolve full database metadata');
-		}
-		const dataSourceId = database.data_sources[0]?.id;
-		if (!dataSourceId) {
-			throw new Error('No data source found for database');
-		}
-		dataSourceIdCache.set(databaseOrDataSourceId, dataSourceId);
-		return dataSourceId;
-	} catch (error: unknown) {
-		throw error;
-	}
+function getMonthFromTransactionDate(transactionDate: string): string {
+	return transactionDate.slice(0, 7);
 }
 
-export async function upsertTransaction(payload: SepayWebhookPayload, env: NotionEnv): Promise<void> {
+export async function ensureMonthlyBudgetForMonth(month: string, env: NotionEnv): Promise<string> {
+	if (!env.NOTION_TOKEN || !env.NOTION_BUDGET_DB_ID || !env.NOTION_JARS_CONFIG_DB_ID) {
+		throw new Error('Missing Notion budget configuration');
+	}
+
+	const notion = createNotionClient(env.NOTION_TOKEN);
+	return ensureMonthlyBudget(notion, env.NOTION_BUDGET_DB_ID, env.NOTION_JARS_CONFIG_DB_ID, month);
+}
+
+export async function upsertTransaction(payload: SepayWebhookPayload, env: NotionEnv): Promise<string> {
 	if (!env.NOTION_TOKEN || !env.NOTION_DB_ID) {
 		throw new Error('Missing Notion configuration');
 	}
 
 	const queueKey = String(payload.id);
-	const previous = upsertQueue.get(queueKey) ?? Promise.resolve();
+	const previous = upsertQueue.get(queueKey) ?? Promise.resolve('');
 	const current = previous
-		.catch(() => undefined)
+		.catch(() => '')
 		.then(async () => {
-			const notion = new Client({
-				auth: env.NOTION_TOKEN,
-				fetch: globalThis.fetch.bind(globalThis),
-			});
+			const notion = createNotionClient(env.NOTION_TOKEN);
 			const dataSourceId = await resolveDataSourceId(notion, env.NOTION_DB_ID);
 			const properties = buildProperties(payload);
 			const existingPageIds = await findExistingPageIds(notion, dataSourceId, payload.id);
+			let pageIds: string[] = existingPageIds;
 
 			if (existingPageIds.length > 0) {
 				for (const pageId of existingPageIds) {
@@ -128,22 +108,43 @@ export async function upsertTransaction(payload: SepayWebhookPayload, env: Notio
 						properties,
 					});
 				}
-				return;
+			} else {
+				const created = await notion.pages.create({
+					parent: { data_source_id: dataSourceId },
+					properties,
+					icon: {
+						type: 'emoji',
+						emoji: payload.transferType.toUpperCase() === 'OUT' ? '💸' : '💰',
+					},
+				});
+				pageIds = [created.id];
 			}
 
-			await notion.pages.create({
-				parent: { data_source_id: dataSourceId },
-				properties,
-				icon: {
-					type: 'emoji',
-					emoji: payload.transferType.toUpperCase() === 'OUT' ? '💸' : '💰',
-				},
-			});
+			try {
+				if (env.NOTION_BUDGET_DB_ID && env.NOTION_JARS_CONFIG_DB_ID) {
+					const month = getMonthFromTransactionDate(payload.transactionDate);
+					const budgetId = await ensureMonthlyBudget(
+						notion,
+						env.NOTION_BUDGET_DB_ID,
+						env.NOTION_JARS_CONFIG_DB_ID,
+						month
+					);
+					for (const pageId of pageIds) {
+						await linkTransactionToBudget(notion, pageId, budgetId);
+					}
+				} else {
+					console.warn('Budget linking skipped: missing NOTION_BUDGET_DB_ID or NOTION_JARS_CONFIG_DB_ID');
+				}
+			} catch (error: unknown) {
+				console.warn('Budget linking failed (non-blocking):', error);
+			}
+
+			return pageIds[0] ?? '';
 		});
 
 	upsertQueue.set(queueKey, current);
 	try {
-		await current;
+		return await current;
 	} finally {
 		if (upsertQueue.get(queueKey) === current) {
 			upsertQueue.delete(queueKey);

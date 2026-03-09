@@ -6,6 +6,7 @@ const notionMocks = vi.hoisted(() => ({
 	dataSourcesRetrieve: vi.fn(),
 	dataSourcesQuery: vi.fn(),
 	databasesRetrieve: vi.fn(),
+	databasesUpdate: vi.fn(),
 	pagesUpdate: vi.fn(),
 	pagesCreate: vi.fn(),
 }));
@@ -18,6 +19,7 @@ vi.mock('@notionhq/client', () => {
 		};
 		databases = {
 			retrieve: notionMocks.databasesRetrieve,
+			update: notionMocks.databasesUpdate,
 		};
 		pages = {
 			update: notionMocks.pagesUpdate,
@@ -32,6 +34,7 @@ vi.mock('@notionhq/client', () => {
 	return {
 		Client: MockClient,
 		APIErrorCode: { ObjectNotFound: 'object_not_found' },
+		LogLevel: { ERROR: 'error' },
 		isNotionClientError: (error: unknown) => typeof error === 'object' && error !== null && 'code' in error,
 		isFullDatabase: (response: unknown) =>
 			typeof response === 'object' &&
@@ -62,13 +65,19 @@ beforeEach(() => {
 	notionMocks.dataSourcesRetrieve.mockReset();
 	notionMocks.dataSourcesQuery.mockReset();
 	notionMocks.databasesRetrieve.mockReset();
+	notionMocks.databasesUpdate.mockReset();
 	notionMocks.pagesUpdate.mockReset();
 	notionMocks.pagesCreate.mockReset();
 });
 
 describe('upsertTransaction', () => {
 	it('updates all existing pages when tx id already exists', async () => {
-		const env: NotionEnv = { NOTION_TOKEN: 'token', NOTION_DB_ID: 'ds-001' };
+		const env: NotionEnv = {
+			NOTION_TOKEN: 'token',
+			NOTION_DB_ID: 'ds-001',
+			NOTION_BUDGET_DB_ID: '',
+			NOTION_JARS_CONFIG_DB_ID: '',
+		};
 		notionMocks.dataSourcesRetrieve.mockResolvedValueOnce({ object: 'data_source', id: 'ds-001' });
 		notionMocks.dataSourcesQuery.mockResolvedValueOnce({ results: [{ id: 'page-1' }, { id: 'page-2' }] });
 		notionMocks.pagesUpdate.mockResolvedValue({});
@@ -95,7 +104,12 @@ describe('upsertTransaction', () => {
 	});
 
 	it('paginates duplicate lookup and updates all pages across cursors', async () => {
-		const env: NotionEnv = { NOTION_TOKEN: 'token', NOTION_DB_ID: 'ds-002' };
+		const env: NotionEnv = {
+			NOTION_TOKEN: 'token',
+			NOTION_DB_ID: 'ds-002',
+			NOTION_BUDGET_DB_ID: '',
+			NOTION_JARS_CONFIG_DB_ID: '',
+		};
 		notionMocks.dataSourcesRetrieve.mockResolvedValueOnce({ object: 'data_source', id: 'ds-002' });
 		notionMocks.dataSourcesQuery
 			.mockResolvedValueOnce({
@@ -121,7 +135,12 @@ describe('upsertTransaction', () => {
 	});
 
 	it('falls back from database id to data source id and creates page', async () => {
-		const env: NotionEnv = { NOTION_TOKEN: 'token', NOTION_DB_ID: 'db-001' };
+		const env: NotionEnv = {
+			NOTION_TOKEN: 'token',
+			NOTION_DB_ID: 'db-001',
+			NOTION_BUDGET_DB_ID: '',
+			NOTION_JARS_CONFIG_DB_ID: '',
+		};
 		notionMocks.dataSourcesRetrieve.mockRejectedValueOnce({ code: 'object_not_found' });
 		notionMocks.databasesRetrieve.mockResolvedValueOnce({
 			object: 'database',
@@ -161,7 +180,12 @@ describe('upsertTransaction', () => {
 	});
 
 	it('throws when notion env is missing', async () => {
-		const env: NotionEnv = { NOTION_TOKEN: '', NOTION_DB_ID: '' };
+		const env: NotionEnv = {
+			NOTION_TOKEN: '',
+			NOTION_DB_ID: '',
+			NOTION_BUDGET_DB_ID: '',
+			NOTION_JARS_CONFIG_DB_ID: '',
+		};
 		await expect(upsertTransaction(basePayload, env)).rejects.toThrow('Missing Notion configuration');
 		expect(notionMocks.clientCtor).not.toHaveBeenCalled();
 	});

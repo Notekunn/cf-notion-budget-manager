@@ -1,9 +1,11 @@
-import { upsertTransaction } from './notion';
+import { ensureMonthlyBudgetForMonth, upsertTransaction } from './notion';
 import { isSepayWebhookPayload, verifyApiKey } from './sepay';
 
 export interface Env {
 	NOTION_TOKEN: string;
 	NOTION_DB_ID: string;
+	NOTION_BUDGET_DB_ID: string;
+	NOTION_JARS_CONFIG_DB_ID: string;
 	SEPAY_API_KEY: string;
 }
 
@@ -16,9 +18,77 @@ function isJsonContentType(contentType: string | null): boolean {
 	return mimeType === 'application/json' || mimeType.endsWith('+json');
 }
 
+function getCurrentMonthUtc(): string {
+	const now = new Date();
+	const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+	return `${now.getUTCFullYear()}-${month}`;
+}
+
+function isValidMonth(value: string): boolean {
+	const match = value.match(/^(\d{4})-(\d{2})$/);
+	if (!match) {
+		return false;
+	}
+	const month = Number(match[2]);
+	return month >= 1 && month <= 12;
+}
+
+async function getBudgetMonth(request: Request): Promise<string | null> {
+	const rawBody = await request.text();
+	if (!rawBody.trim()) {
+		return getCurrentMonthUtc();
+	}
+	if (!isJsonContentType(request.headers.get('Content-Type'))) {
+		return null;
+	}
+
+	let payload: unknown;
+	try {
+		payload = JSON.parse(rawBody);
+	} catch {
+		return null;
+	}
+	if (typeof payload !== 'object' || payload === null) {
+		return null;
+	}
+
+	const month = (payload as { month?: unknown }).month;
+	if (month === undefined || month === null || month === '') {
+		return getCurrentMonthUtc();
+	}
+	if (typeof month !== 'string') {
+		return null;
+	}
+
+	const normalizedMonth = month.trim();
+	return isValidMonth(normalizedMonth) ? normalizedMonth : null;
+}
+
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
+
+		if (request.method === 'POST' && url.pathname === '/budget') {
+			if (!verifyApiKey(request, env.SEPAY_API_KEY)) {
+				return new Response('Unauthorized', { status: 401 });
+			}
+
+			const month = await getBudgetMonth(request);
+			if (!month) {
+				return new Response('Bad Request', { status: 400 });
+			}
+
+			try {
+				const budgetId = await ensureMonthlyBudgetForMonth(month, env);
+				return new Response(JSON.stringify({ success: true, budgetId, month }), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' },
+				});
+			} catch (error: unknown) {
+				console.error('Error occurred while creating monthly budget:', error);
+				return new Response('Internal Server Error', { status: 500 });
+			}
+		}
 
 		if (request.method !== 'POST' || url.pathname !== '/webhook') {
 			return new Response('Not Found', { status: 404 });
@@ -54,5 +124,9 @@ export default {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
 		});
+	},
+	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+		const month = getCurrentMonthUtc();
+		await ensureMonthlyBudgetForMonth(month, env);
 	},
 } satisfies ExportedHandler<Env>;

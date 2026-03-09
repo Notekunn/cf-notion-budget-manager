@@ -14,6 +14,8 @@ const upsertTransactionMock = vi.mocked(upsertTransaction);
 const testEnv: Env = {
 	NOTION_TOKEN: 'test-token',
 	NOTION_DB_ID: 'test-db',
+	NOTION_BUDGET_DB_ID: 'test-budget-db',
+	NOTION_JARS_CONFIG_DB_ID: 'test-jars-db',
 	SEPAY_API_KEY: 'test-sepay-key',
 };
 
@@ -41,7 +43,7 @@ async function fetchUnit(request: Request, env: Env = testEnv): Promise<Response
 
 beforeEach(() => {
 	upsertTransactionMock.mockReset();
-	upsertTransactionMock.mockResolvedValue(undefined);
+	upsertTransactionMock.mockResolvedValue('page-1');
 });
 
 describe('SePay webhook worker', () => {

@@ -1,5 +1,46 @@
 # Project Changelog
 
+## 2026-03-07
+
+### Added
+
+- `src/notion-client.ts` for shared Notion client init + data-source-id resolution.
+- `src/budget-service.ts` for:
+  - JAR config fetch
+  - monthly budget lookup/create
+  - budget DB formula property sync
+  - transaction-to-budget relation linking
+- New tests:
+  - `test/budget-service.spec.ts`
+  - `test/budget-endpoint.spec.ts`
+  - `test/notion-budget-linking.spec.ts`
+
+### Changed
+
+- `src/index.ts`:
+  - added env vars: `NOTION_BUDGET_DB_ID`, `NOTION_JARS_CONFIG_DB_ID`
+  - added `POST /budget` route (same API key auth as webhook)
+  - added `scheduled` handler for monthly budget auto-create
+- `src/notion.ts`:
+  - `upsertTransaction()` now returns transaction page id
+  - webhook flow now ensures monthly budget + links transaction to it
+  - budget-linking failure is non-blocking (warn only)
+- `wrangler.toml`:
+  - added secret setup comments for new env vars
+  - added cron trigger: `0 0 1 * *`
+- Test updates:
+  - `test/index.spec.ts` env/type alignment for new `Env`
+  - `test/notion-upsert.spec.ts` env/type alignment
+
+### Verified
+
+- `npx tsc --noEmit` passes.
+- `npm test -- --run` passes (`36/36` tests).
+
+### Fixed
+
+- Reduced noisy Notion SDK warn logs by setting Notion client `logLevel` to `error` in `src/notion-client.ts`.
+
 ## 2026-03-05
 
 ### Added

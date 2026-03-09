@@ -1,23 +1,20 @@
 # Project Overview + PDR
 
-Last updated: 2026-03-05
-Version: 0.3.0-phase-3
+Last updated: 2026-03-07
+Version: 0.4.0-jar-budget
 
 ## Project Overview
 
-`notion-budget-manager` is a Cloudflare Worker project intended to receive SePay webhook events and sync transactions into a Notion database.
+`notion-budget-manager` is a Cloudflare Worker project for SePay webhook ingestion, Notion transaction sync, and JAR-based monthly budgeting.
 
 Current implemented state (verified in code):
 - Worker scaffold exists with strict TypeScript + Wrangler config.
-- `src/index.ts` handles `POST /webhook` only.
-- API key, content-type, JSON parse, and payload shape validation are implemented.
-- `upsertTransaction(payload, env)` is wired and guarded with `500` catch.
-- `src/notion.ts` implements real Notion upsert:
-  - resolve data source id from data source id or database id
-  - query existing rows by `Transaction ID` (paginated)
-  - update all matches or create when no match
-  - serialize concurrent upserts by transaction id in memory
-- Test suite passes (`18` tests).
+- `src/index.ts` handles `POST /webhook`, `POST /budget`, and `scheduled`.
+- API key auth enforced for both POST routes.
+- `src/notion.ts` upserts transactions and non-blocking links each tx to monthly budget.
+- `src/budget-service.ts` handles JAR config fetch, budget DB schema sync, monthly budget find/create, and tx->budget link.
+- Cron trigger configured: `0 0 1 * *`.
+- Test suite passes (`36` tests).
 
 ## Product Scope
 
@@ -25,6 +22,7 @@ In scope:
 - Webhook receiver on Cloudflare Workers.
 - API key verification using SePay key.
 - Notion upsert by transaction ID.
+- JAR config + monthly budget automation in Notion.
 
 Out of scope (for now):
 - Extra storage layer (KV, D1, Queue).
@@ -42,7 +40,12 @@ Out of scope (for now):
 | FR-5 | Parse + validate SePay JSON payload | Completed |
 | FR-6 | Upsert transaction in Notion DB by `Transaction ID` | Completed |
 | FR-7 | Return status codes for auth/body/upsert failures | Completed |
-| FR-8 | Automated tests for webhook route/status contract | Completed (18 passing tests) |
+| FR-8 | Automated tests for webhook route/status contract | Completed |
+| FR-9 | `POST /budget` manual monthly budget creation | Completed |
+| FR-10 | Cron-triggered monthly budget creation | Completed |
+| FR-11 | Auto-link transaction to monthly budget by tx month | Completed |
+| FR-12 | Dynamic per-JAR formula property sync on budget DB | Completed |
+| FR-13 | Automated tests for budget service, budget route, and budget linking | Completed (36 passing tests) |
 
 ## Non-Functional Requirements
 
@@ -56,7 +59,7 @@ Out of scope (for now):
 
 ## Acceptance Criteria
 
-Phase 3 done when:
+Phase 4/5 done when:
 1. `POST /webhook` with wrong API key returns `401`.
 2. `POST /webhook` with malformed or invalid body returns `400`.
 3. Non-`POST /webhook` requests return `404`.
@@ -65,7 +68,7 @@ Phase 3 done when:
 6. Upsert updates existing Notion rows by `Transaction ID`.
 7. Upsert creates new Notion row when `Transaction ID` is missing.
 
-Overall product done when:
+Current release done when:
 1. Valid `POST /webhook` updates/creates a Notion row in deployed environment.
 2. Invalid API key returns `401`.
 3. Malformed JSON returns `400`.
@@ -92,3 +95,4 @@ Overall product done when:
 | 2026-03-05 | Initial PDR created from Phase plan + scaffold |
 | 2026-03-05 | Updated for phase-2 completion: webhook route/auth/validation/error handling implemented; phase-3 Notion upsert remains pending |
 | 2026-03-05 | Updated for phase-3 completion: real Notion upsert implemented and tests now 18 passing |
+| 2026-03-07 | Added JAR budget service, webhook budget linking, `POST /budget`, cron trigger, and tests expanded to 36 |
