@@ -97,19 +97,21 @@ export async function upsertTransaction(payload: SepayWebhookPayload, env: Notio
 			const properties = buildProperties(payload);
 			const existingPageIds = await findExistingPageIds(notion, dataSourceId, payload.id);
 			let pageIds: string[] = existingPageIds;
+			console.log(existingPageIds);
 
 			if (existingPageIds.length > 0) {
+				const { Name: _, ...updateProperties } = properties;
+
 				for (const pageId of existingPageIds) {
 					await notion.pages.update({
 						page_id: pageId,
-						properties,
+						properties: updateProperties,
 					});
 				}
 			} else {
-				const { Name: _, ...updateProperties } = properties;
 				const created = await notion.pages.create({
 					parent: { data_source_id: dataSourceId },
-					properties: updateProperties,
+					properties,
 					icon: {
 						type: 'emoji',
 						emoji: payload.transferType.toUpperCase() === 'OUT' ? '💸' : '💰',
