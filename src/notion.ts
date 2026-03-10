@@ -1,8 +1,5 @@
 import type { Client } from '@notionhq/client';
-import {
-	ensureMonthlyBudget,
-	linkTransactionToBudget,
-} from './budget-service';
+import { ensureMonthlyBudget, linkTransactionToBudget } from './budget-service';
 import { createNotionClient, resolveDataSourceId } from './notion-client';
 import type { SepayWebhookPayload } from './sepay';
 
@@ -109,9 +106,10 @@ export async function upsertTransaction(payload: SepayWebhookPayload, env: Notio
 					});
 				}
 			} else {
+				const { Name: _, ...updateProperties } = properties;
 				const created = await notion.pages.create({
 					parent: { data_source_id: dataSourceId },
-					properties,
+					properties: updateProperties,
 					icon: {
 						type: 'emoji',
 						emoji: payload.transferType.toUpperCase() === 'OUT' ? '💸' : '💰',
@@ -123,12 +121,7 @@ export async function upsertTransaction(payload: SepayWebhookPayload, env: Notio
 			try {
 				if (env.NOTION_BUDGET_DB_ID && env.NOTION_JARS_CONFIG_DB_ID) {
 					const month = getMonthFromTransactionDate(payload.transactionDate);
-					const budgetId = await ensureMonthlyBudget(
-						notion,
-						env.NOTION_BUDGET_DB_ID,
-						env.NOTION_JARS_CONFIG_DB_ID,
-						month
-					);
+					const budgetId = await ensureMonthlyBudget(notion, env.NOTION_BUDGET_DB_ID, env.NOTION_JARS_CONFIG_DB_ID, month);
 					for (const pageId of pageIds) {
 						await linkTransactionToBudget(notion, pageId, budgetId);
 					}
