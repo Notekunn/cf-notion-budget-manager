@@ -1,5 +1,6 @@
 import { ensureMonthlyBudgetForMonth, upsertTransaction } from './notion';
 import { isSepayWebhookPayload, verifyApiKey } from './sepay';
+import { checkSubscriptionAlerts } from './subscription-alert';
 
 export interface Env {
 	NOTION_TOKEN: string;
@@ -7,6 +8,9 @@ export interface Env {
 	NOTION_BUDGET_DB_ID: string;
 	NOTION_JARS_CONFIG_DB_ID: string;
 	SEPAY_API_KEY: string;
+	TELEGRAM_BOT_TOKEN: string;
+	TELEGRAM_CHAT_ID: string;
+	NOTION_SUBSCRIPTION_DB_ID: string;
 }
 
 function isJsonContentType(contentType: string | null): boolean {
@@ -90,6 +94,22 @@ export default {
 			}
 		}
 
+		if (request.method === 'POST' && url.pathname === '/subscription-alerts') {
+			if (!verifyApiKey(request, env.SEPAY_API_KEY)) {
+				return new Response('Unauthorized', { status: 401 });
+			}
+			try {
+				await checkSubscriptionAlerts(env);
+				return new Response(JSON.stringify({ success: true }), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' },
+				});
+			} catch (error: unknown) {
+				console.error('Error checking subscription alerts:', error);
+				return new Response('Internal Server Error', { status: 500 });
+			}
+		}
+
 		if (request.method !== 'POST' || url.pathname !== '/webhook') {
 			return new Response('Not Found', { status: 404 });
 		}
@@ -125,8 +145,15 @@ export default {
 			headers: { 'Content-Type': 'application/json' },
 		});
 	},
-	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-		const month = getCurrentMonthUtc();
-		await ensureMonthlyBudgetForMonth(month, env);
+	async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+		// Monthly budget (1st of month)
+		if (event.cron === '0 0 1 * *') {
+			const month = getCurrentMonthUtc();
+			await ensureMonthlyBudgetForMonth(month, env);
+		}
+		// Daily subscription alert
+		if (event.cron === '0 0 * * *') {
+			await checkSubscriptionAlerts(env);
+		}
 	},
 } satisfies ExportedHandler<Env>;

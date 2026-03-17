@@ -1,5 +1,6 @@
 import type { Client } from '@notionhq/client';
 import { resolveDataSourceId } from './notion-client';
+import { getNumberValue, getTitleValue } from './notion-helpers';
 
 export interface JarConfig {
 	id: string;
@@ -13,21 +14,6 @@ function firstDayOfMonth(month: string): string {
 
 function escapeFormulaText(value: string): string {
 	return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-function getTitleValue(properties: Record<string, any>, key: string): string {
-	const titleItems = properties[key]?.title;
-	if (!Array.isArray(titleItems)) {
-		return '';
-	}
-	const item = titleItems[0];
-	const value = item?.plain_text ?? item?.text?.content ?? '';
-	return String(value).trim();
-}
-
-function getNumberValue(properties: Record<string, any>, key: string): number {
-	const value = properties[key]?.number;
-	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 export async function fetchJarConfigs(notion: Client, jarsConfigDbId: string): Promise<JarConfig[]> {
