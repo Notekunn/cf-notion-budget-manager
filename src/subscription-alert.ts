@@ -14,6 +14,7 @@ export interface Subscription {
 	daysUntilRenewal: number | null;
 	remindDaysBefore: number;
 	autoRenew: boolean;
+	trialEndDate: string | null;
 }
 
 function getFormulaNumber(properties: Record<string, any>, key: string): number | null {
@@ -34,6 +35,10 @@ function getFormulaDate(properties: Record<string, any>, key: string): string | 
 
 function getSelectValue(properties: Record<string, any>, key: string): string {
 	return properties[key]?.select?.name ?? '';
+}
+
+function getDateValue(properties: Record<string, any>, key: string): string | null {
+	return properties[key]?.date?.start ?? null;
 }
 
 function getCheckboxValue(properties: Record<string, any>, key: string): boolean {
@@ -86,6 +91,7 @@ export async function fetchActiveSubscriptions(notion: Client, subscriptionDbId:
 				daysUntilRenewal: getFormulaNumber(props, 'Days Until Renewal'),
 				remindDaysBefore: getNumberValue(props, 'Remind Days Before') || 3,
 				autoRenew: getCheckboxValue(props, 'Auto Renew'),
+				trialEndDate: getDateValue(props, 'Trial End Date'),
 			});
 		}
 
@@ -98,6 +104,7 @@ export async function fetchActiveSubscriptions(notion: Client, subscriptionDbId:
 // --- Alert logic ---
 
 export interface AlertResult {
+	trialEnding: Subscription[];
 	dueToday: Subscription[];
 	upcoming: Subscription[];
 }
@@ -112,11 +119,29 @@ export function getTodayVietnam(): string {
 	return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+export function diffDays(dateStr: string, todayStr: string): number {
+	const d1 = new Date(dateStr + 'T00:00:00Z');
+	const d2 = new Date(todayStr + 'T00:00:00Z');
+	return Math.round((d1.getTime() - d2.getTime()) / 86400000);
+}
+
 export function filterSubscriptionsForAlert(subs: Subscription[], todayStr: string): AlertResult {
+	const trialEnding: Subscription[] = [];
 	const dueToday: Subscription[] = [];
 	const upcoming: Subscription[] = [];
 
 	for (const sub of subs) {
+		// Trial subs with trialEndDate: prioritize trial end alerts
+		if (sub.status === 'Trial' && sub.trialEndDate) {
+			const daysLeft = diffDays(sub.trialEndDate, todayStr);
+			if (daysLeft <= 0 && daysLeft >= -7) {
+				trialEnding.push(sub);
+			} else if (daysLeft > 0 && daysLeft <= sub.remindDaysBefore) {
+				trialEnding.push(sub);
+			}
+			continue; // Skip renewal alerts for trial subs with trialEndDate
+		}
+
 		const nextPaymentDate = sub.nextPayment?.slice(0, 10) ?? null;
 		const days = sub.daysUntilRenewal;
 
@@ -128,7 +153,7 @@ export function filterSubscriptionsForAlert(subs: Subscription[], todayStr: stri
 		}
 	}
 
-	return { dueToday, upcoming };
+	return { trialEnding, dueToday, upcoming };
 }
 
 function formatNumberWithCommas(n: number): string {
@@ -148,6 +173,7 @@ function formatAmount(amount: number, currency: string): string {
 
 function formatSubLine(sub: Subscription, showDays: boolean): string {
 	const amount = formatAmount(sub.amount, sub.currency);
+
 	const days = showDays && sub.daysUntilRenewal !== null ? ` in ${sub.daysUntilRenewal} day${sub.daysUntilRenewal === 1 ? '' : 's'}` : '';
 	return `• ${sub.name} — ${amount}${days} (${sub.billingCycle})`;
 }
@@ -160,14 +186,39 @@ function formatTotalsByCurrency(subs: Subscription[]): string {
 	return [...totals.entries()].map(([currency, total]) => formatAmount(total, currency)).join(', ');
 }
 
+function formatTrialLine(sub: Subscription, todayStr: string): string {
+	const amount = formatAmount(sub.amount, sub.currency);
+	const daysLeft = sub.trialEndDate ? diffDays(sub.trialEndDate, todayStr) : 0;
+	let urgency: string;
+	if (daysLeft <= 0) {
+		urgency = '🔴 EXPIRED';
+	} else if (daysLeft === 1) {
+		urgency = '🔴 TOMORROW';
+	} else if (daysLeft <= 3) {
+		urgency = `🟠 ${daysLeft} days left`;
+	} else {
+		urgency = `🟡 ${daysLeft} days left`;
+	}
+	return `• ${sub.name} — ${amount} [${urgency}] (${sub.billingCycle})`;
+}
+
 export function formatAlertMessage(result: AlertResult, todayStr: string): string | null {
-	if (result.dueToday.length === 0 && result.upcoming.length === 0) {
+	if (result.trialEnding.length === 0 && result.dueToday.length === 0 && result.upcoming.length === 0) {
 		return null;
 	}
 
 	const [year, month, day] = todayStr.split('-');
 	const header = `🔔 Subscription Alerts — ${day}/${month}/${year}`;
 	const lines: string[] = [header, ''];
+
+	if (result.trialEnding.length > 0) {
+		lines.push('🚨 TRIAL ENDING — ACT NOW:');
+		for (const sub of result.trialEnding) {
+			lines.push(formatTrialLine(sub, todayStr));
+		}
+		lines.push('👉 Cancel or upgrade before trial expires!');
+		lines.push('');
+	}
 
 	if (result.dueToday.length > 0) {
 		lines.push('⚠️ Due Today:');
@@ -195,9 +246,11 @@ export function formatAlertMessage(result: AlertResult, todayStr: string): strin
 export async function checkSubscriptionAlerts(env: SubscriptionAlertEnv): Promise<void> {
 	const notion = createNotionClient(env.NOTION_TOKEN);
 	const subs = await fetchActiveSubscriptions(notion, env.NOTION_SUBSCRIPTION_DB_ID);
+
 	const today = getTodayVietnam();
 	const result = filterSubscriptionsForAlert(subs, today);
 	const message = formatAlertMessage(result, today);
+
 	if (message) {
 		await sendTelegramMessage(env, message);
 	}
