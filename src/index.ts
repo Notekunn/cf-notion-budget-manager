@@ -1,3 +1,4 @@
+import { handleChartRequest } from './chart-routes';
 import { ensureMonthlyBudgetForMonth, upsertTransaction } from './notion';
 import { isSepayWebhookPayload, verifyApiKey } from './sepay';
 import { checkSubscriptionAlerts } from './subscription-alert';
@@ -8,6 +9,7 @@ export interface Env {
 	NOTION_BUDGET_DB_ID: string;
 	NOTION_JARS_CONFIG_DB_ID: string;
 	SEPAY_API_KEY: string;
+	CHART_API_KEY?: string;
 	TELEGRAM_BOT_TOKEN: string;
 	TELEGRAM_CHAT_ID: string;
 	NOTION_SUBSCRIPTION_DB_ID: string;
@@ -71,6 +73,12 @@ async function getBudgetMonth(request: Request): Promise<string | null> {
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
+
+		if (request.method === 'GET' && url.pathname.startsWith('/charts/')) {
+			const chartResponse = await handleChartRequest(url, env);
+			if (chartResponse) return chartResponse;
+			return new Response('Not Found', { status: 404 });
+		}
 
 		if (request.method === 'POST' && url.pathname === '/budget') {
 			if (!verifyApiKey(request, env.SEPAY_API_KEY)) {

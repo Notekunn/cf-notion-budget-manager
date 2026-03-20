@@ -7,7 +7,8 @@ Cloudflare Worker that ingests SePay payment webhooks, syncs transactions to Not
 - **Webhook receiver** — `POST /webhook` ingests SePay payment notifications, upserts transactions in Notion (deduped by Transaction ID)
 - **Monthly budgets** — `POST /budget` + monthly cron creates budget pages with per-JAR formula columns synced from a config DB
 - **Subscription alerts** — `POST /subscription-alerts` + daily cron queries active subscriptions from Notion, sends Telegram alerts for upcoming renewals and expiring trials
-- **API key auth** on all POST routes
+- **Embedded charts** — `GET /charts/*` serves Chart.js HTML pages (trends, categories, budget, dashboard), embeddable in Notion via iframe
+- **API key auth** on all POST routes; query param `?key=xxx` on GET chart routes for iframe embeds
 
 ## Tech Stack
 
@@ -49,13 +50,17 @@ npm run deploy   # deploy to Cloudflare
 
 ## Routes
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/webhook` | SePay payment webhook receiver |
-| POST | `/budget` | Create/ensure monthly budget (optional `{ "month": "YYYY-MM" }`) |
-| POST | `/subscription-alerts` | Trigger subscription alert check |
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| POST | `/webhook` | SePay payment webhook receiver | API key |
+| POST | `/budget` | Create/ensure monthly budget (optional `{ "month": "YYYY-MM" }`) | API key |
+| POST | `/subscription-alerts` | Trigger subscription alert check | API key |
+| GET | `/charts/trends` | Monthly income vs spending bar chart | `?key=xxx` |
+| GET | `/charts/categories` | Spending by JAR category doughnut chart | `?key=xxx` |
+| GET | `/charts/budget` | Budget vs actual per JAR grouped bar | `?key=xxx` |
+| GET | `/charts/dashboard` | All charts combined | `?key=xxx` |
 
-All routes require `Authorization` header with SePay API key.
+POST routes require `Authorization` header with API key. GET chart routes use query param auth for Notion embed URLs.
 
 ## Cron Triggers
 
