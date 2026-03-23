@@ -17,6 +17,7 @@ const testEnv: Env = {
 	NOTION_BUDGET_DB_ID: 'test-budget-db',
 	NOTION_JARS_CONFIG_DB_ID: 'test-jars-db',
 	SEPAY_API_KEY: 'test-sepay-key',
+	NOTION_CATEGORY_DB_ID: 'test-category-db',
 };
 
 const validPayload = {

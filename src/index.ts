@@ -1,4 +1,5 @@
 import { handleChartRequest } from './chart-routes';
+import { importCsvTransactions } from './csv-import';
 import { ensureMonthlyBudgetForMonth, upsertTransaction } from './notion';
 import { isSepayWebhookPayload, verifyApiKey } from './sepay';
 import { checkSubscriptionAlerts } from './subscription-alert';
@@ -13,6 +14,7 @@ export interface Env {
 	TELEGRAM_BOT_TOKEN: string;
 	TELEGRAM_CHAT_ID: string;
 	NOTION_SUBSCRIPTION_DB_ID: string;
+	NOTION_CATEGORY_DB_ID: string;
 }
 
 function isJsonContentType(contentType: string | null): boolean {
@@ -71,7 +73,7 @@ async function getBudgetMonth(request: Request): Promise<string | null> {
 }
 
 export default {
-	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 
 		if (request.method === 'GET' && url.pathname.startsWith('/charts/')) {
@@ -116,6 +118,22 @@ export default {
 				console.error('Error checking subscription alerts:', error);
 				return new Response('Internal Server Error', { status: 500 });
 			}
+		}
+
+		if (request.method === 'POST' && url.pathname === '/import-csv') {
+			if (!verifyApiKey(request, env.SEPAY_API_KEY)) {
+				return new Response('Unauthorized', { status: 401 });
+			}
+			const csvBody = await request.text();
+			ctx.waitUntil(
+				importCsvTransactions(csvBody, env)
+					.then((result) => console.log('CSV import done:', JSON.stringify(result)))
+					.catch((error) => console.error('CSV import failed:', error)),
+			);
+			return new Response(JSON.stringify({ accepted: true }), {
+				status: 202,
+				headers: { 'Content-Type': 'application/json' },
+			});
 		}
 
 		if (request.method !== 'POST' || url.pathname !== '/webhook') {
