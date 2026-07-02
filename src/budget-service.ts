@@ -93,18 +93,21 @@ export async function syncBudgetDbProperties(notion: Client, budgetDbId: string,
 
 export async function findMonthlyBudget(notion: Client, budgetDbId: string, month: string): Promise<string | null> {
 	const dataSourceId = await resolveDataSourceId(notion, budgetDbId);
+	try {
+		const response = await notion.dataSources.query({
+			data_source_id: dataSourceId,
+			page_size: 1,
+			filter: {
+				property: 'Month',
+				date: { equals: firstDayOfMonth(month) },
+			},
+		});
 
-	const response = await notion.dataSources.query({
-		data_source_id: dataSourceId,
-		page_size: 1,
-		filter: {
-			property: 'Month',
-			date: { equals: firstDayOfMonth(month) },
-		},
-		in_trash: false,
-	});
-
-	return response.results[0]?.id ?? null;
+		return response.results[0]?.id ?? null;
+	} catch (error) {
+		console.error('Error finding monthly budget:', error);
+		return null;
+	}
 }
 
 export async function createMonthlyBudget(notion: Client, budgetDbId: string, month: string, jars: JarConfig[]): Promise<string> {
