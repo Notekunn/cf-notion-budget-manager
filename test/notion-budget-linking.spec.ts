@@ -5,6 +5,7 @@ const notionMocks = vi.hoisted(() => ({
 	clientCtor: vi.fn(),
 	dataSourcesRetrieve: vi.fn(),
 	dataSourcesQuery: vi.fn(),
+	dataSourcesUpdate: vi.fn(),
 	databasesRetrieve: vi.fn(),
 	databasesUpdate: vi.fn(),
 	pagesUpdate: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('@notionhq/client', () => {
 		dataSources = {
 			retrieve: notionMocks.dataSourcesRetrieve,
 			query: notionMocks.dataSourcesQuery,
+			update: notionMocks.dataSourcesUpdate,
 		};
 		databases = {
 			retrieve: notionMocks.databasesRetrieve,
@@ -71,6 +73,7 @@ beforeEach(() => {
 	notionMocks.clientCtor.mockReset();
 	notionMocks.dataSourcesRetrieve.mockReset();
 	notionMocks.dataSourcesQuery.mockReset();
+	notionMocks.dataSourcesUpdate.mockReset();
 	notionMocks.databasesRetrieve.mockReset();
 	notionMocks.databasesUpdate.mockReset();
 	notionMocks.pagesUpdate.mockReset();
@@ -125,7 +128,7 @@ describe('upsertTransaction budget linking', () => {
 		notionMocks.pagesUpdate.mockResolvedValue({});
 
 		await upsertTransaction(payload, env);
-		expect(notionMocks.databasesUpdate).toHaveBeenCalledOnce();
+		expect(notionMocks.dataSourcesUpdate).toHaveBeenCalledOnce();
 		expect(notionMocks.pagesUpdate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				page_id: 'tx-page-2',

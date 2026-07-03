@@ -10,6 +10,12 @@ export interface NotionEnv {
 	NOTION_JARS_CONFIG_DB_ID: string;
 }
 
+export interface TransactionDetails {
+	name: string;
+	categoryId: string;
+	jarId: string;
+}
+
 const upsertQueue = new Map<string, Promise<string>>();
 
 function toNotionIsoDate(transactionDate: string): string {
@@ -80,6 +86,26 @@ export async function ensureMonthlyBudgetForMonth(month: string, env: NotionEnv)
 
 	const notion = createNotionClient(env.NOTION_TOKEN);
 	return ensureMonthlyBudget(notion, env.NOTION_BUDGET_DB_ID, env.NOTION_JARS_CONFIG_DB_ID, month);
+}
+
+export async function updateTransactionDetails(
+	txPageId: string,
+	details: TransactionDetails,
+	env: Pick<NotionEnv, 'NOTION_TOKEN'>,
+): Promise<void> {
+	if (!env.NOTION_TOKEN) {
+		throw new Error('Missing Notion configuration');
+	}
+
+	const notion = createNotionClient(env.NOTION_TOKEN);
+	await notion.pages.update({
+		page_id: txPageId,
+		properties: {
+			Name: { title: [{ text: { content: details.name } }] },
+			Category: { relation: [{ id: details.categoryId }] },
+			JAR: { relation: [{ id: details.jarId }] },
+		},
+	} as any);
 }
 
 export async function upsertTransaction(payload: SepayWebhookPayload, env: NotionEnv): Promise<string> {

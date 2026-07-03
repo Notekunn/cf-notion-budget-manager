@@ -11,3 +11,4 @@
 
 - [Development Roadmap](./development-roadmap.md)
 - [Project Changelog](./project-changelog.md)
+- [Journals](./journals/)

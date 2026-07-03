@@ -1,5 +1,38 @@
 # Project Changelog
 
+## 2026-07-02
+
+### Added
+
+- Telegram guided transaction input:
+  - `POST /telegram/webhook`
+  - `src/telegram-bot.ts`
+  - `src/telegram-state.ts`
+  - `src/category-service.ts`
+- Notion tx detail update helper for `Name`, `Category`, and `JAR`.
+- `TELEGRAM_STATE` KV binding contract.
+- `TELEGRAM_WEBHOOK_SECRET` secret contract.
+- Tests:
+  - `test/telegram-state.spec.ts`
+  - `test/category-service.spec.ts`
+  - `test/transaction-details.spec.ts`
+  - `test/telegram-bot.spec.ts`
+  - `test/telegram.spec.ts`
+
+### Changed
+
+- `POST /webhook` now schedules Telegram Input prompt after successful Notion upsert.
+- `src/telegram.ts` supports inline keyboards, callback ack, message delete, and returned message ids.
+- Telegram callbacks now require tracked message ids, preventing stale buttons from mutating newer state after cleanup failure.
+- Telegram callback acknowledgements are best-effort and no longer block confirm updates.
+- Budget linking uses `Monthly Budget` relation and restores budget property sync on missing monthly budget.
+- Worker types regenerated for `TELEGRAM_STATE`; `TELEGRAM_WEBHOOK_SECRET` typed without storing a secret value.
+
+### Verified
+
+- `npx tsc --noEmit` passes.
+- `npm test` passes (`120/120` tests).
+
 ## 2026-03-07
 
 ### Added

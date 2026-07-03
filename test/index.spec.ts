@@ -3,13 +3,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/notion', () => ({
 	upsertTransaction: vi.fn(),
+	ensureMonthlyBudgetForMonth: vi.fn(),
+}));
+
+vi.mock('../src/telegram-bot', () => ({
+	sendTransactionInputPrompt: vi.fn(),
+	handleTelegramWebhook: vi.fn(),
 }));
 
 import worker, { type Env } from '../src/index';
-import { upsertTransaction } from '../src/notion';
+import { upsertTransaction, ensureMonthlyBudgetForMonth } from '../src/notion';
+import { handleTelegramWebhook, sendTransactionInputPrompt } from '../src/telegram-bot';
 
 const IncomingRequest = Request;
 const upsertTransactionMock = vi.mocked(upsertTransaction);
+const ensureMonthlyBudgetForMonthMock = vi.mocked(ensureMonthlyBudgetForMonth);
+const sendTransactionInputPromptMock = vi.mocked(sendTransactionInputPrompt);
+const handleTelegramWebhookMock = vi.mocked(handleTelegramWebhook);
+
+function createKvMock(): KVNamespace {
+	return {
+		get: vi.fn(),
+		put: vi.fn(),
+		delete: vi.fn(),
+		list: vi.fn(),
+		getWithMetadata: vi.fn(),
+	} as unknown as KVNamespace;
+}
 
 const testEnv: Env = {
 	NOTION_TOKEN: 'test-token',
@@ -18,6 +38,11 @@ const testEnv: Env = {
 	NOTION_JARS_CONFIG_DB_ID: 'test-jars-db',
 	SEPAY_API_KEY: 'test-sepay-key',
 	NOTION_CATEGORY_DB_ID: 'test-category-db',
+	TELEGRAM_BOT_TOKEN: 'tg-token',
+	TELEGRAM_CHAT_ID: '123',
+	TELEGRAM_WEBHOOK_SECRET: 'tg-secret',
+	TELEGRAM_STATE: createKvMock(),
+	NOTION_SUBSCRIPTION_DB_ID: 'test-subscription-db',
 };
 
 const validPayload = {
@@ -45,6 +70,12 @@ async function fetchUnit(request: Request, env: Env = testEnv): Promise<Response
 beforeEach(() => {
 	upsertTransactionMock.mockReset();
 	upsertTransactionMock.mockResolvedValue('page-1');
+	ensureMonthlyBudgetForMonthMock.mockReset();
+	ensureMonthlyBudgetForMonthMock.mockResolvedValue('budget-page-1');
+	sendTransactionInputPromptMock.mockReset();
+	sendTransactionInputPromptMock.mockResolvedValue();
+	handleTelegramWebhookMock.mockReset();
+	handleTelegramWebhookMock.mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 });
 
 describe('SePay webhook worker', () => {
@@ -142,6 +173,19 @@ describe('SePay webhook worker', () => {
 		const response = await fetchUnit(request);
 		expect(response.status).toBe(400);
 	});
+	it('routes Telegram webhook before SePay webhook fallback', async () => {
+		handleTelegramWebhookMock.mockResolvedValueOnce(new Response('telegram-ok', { status: 202 }));
+		const request = new IncomingRequest('http://example.com/telegram/webhook', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({}),
+		});
+
+		const response = await fetchUnit(request);
+		expect(response.status).toBe(202);
+		expect(handleTelegramWebhookMock).toHaveBeenCalledOnce();
+		expect(upsertTransactionMock).not.toHaveBeenCalled();
+	});
 	it('returns 500 when downstream upsert fails', async () => {
 		upsertTransactionMock.mockRejectedValueOnce(new Error('notion-failed'));
 		const request = new IncomingRequest('http://example.com/webhook', {
@@ -168,6 +212,20 @@ describe('SePay webhook worker', () => {
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({ success: true });
 		expect(upsertTransactionMock).toHaveBeenCalledOnce();
+		expect(sendTransactionInputPromptMock).toHaveBeenCalledWith(validPayload, 'page-1', testEnv);
+	});
+	it('returns 200 when Telegram input prompt fails', async () => {
+		sendTransactionInputPromptMock.mockRejectedValueOnce(new Error('telegram failed'));
+		const request = new IncomingRequest('http://example.com/webhook', {
+			method: 'POST',
+			headers: {
+				Authorization: `Apikey ${testEnv.SEPAY_API_KEY}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(validPayload),
+		});
+		const response = await fetchUnit(request);
+		expect(response.status).toBe(200);
 	});
 	it('accepts ISO transactionDate payload', async () => {
 		const request = new IncomingRequest('http://example.com/webhook', {

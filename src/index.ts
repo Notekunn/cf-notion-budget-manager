@@ -3,6 +3,7 @@ import { importCsvTransactions } from './csv-import';
 import { ensureMonthlyBudgetForMonth, upsertTransaction } from './notion';
 import { isSepayWebhookPayload, verifyApiKey } from './sepay';
 import { checkSubscriptionAlerts } from './subscription-alert';
+import { handleTelegramWebhook, sendTransactionInputPrompt } from './telegram-bot';
 
 export interface Env {
 	NOTION_TOKEN: string;
@@ -13,6 +14,8 @@ export interface Env {
 	CHART_API_KEY?: string;
 	TELEGRAM_BOT_TOKEN: string;
 	TELEGRAM_CHAT_ID: string;
+	TELEGRAM_WEBHOOK_SECRET: string;
+	TELEGRAM_STATE: KVNamespace;
 	NOTION_SUBSCRIPTION_DB_ID: string;
 	NOTION_CATEGORY_DB_ID: string;
 }
@@ -136,6 +139,10 @@ export default {
 			});
 		}
 
+		if (request.method === 'POST' && url.pathname === '/telegram/webhook') {
+			return handleTelegramWebhook(request, env, ctx);
+		}
+
 		if (request.method !== 'POST' || url.pathname !== '/webhook') {
 			return new Response('Not Found', { status: 404 });
 		}
@@ -159,12 +166,19 @@ export default {
 			return new Response('Invalid payload structure', { status: 400 });
 		}
 
+		let txPageId = '';
 		try {
-			await upsertTransaction(payload, env);
+			txPageId = await upsertTransaction(payload, env);
 		} catch (e) {
 			console.error('Error occurred while upserting transaction:', e);
 			return new Response('Internal Server Error', { status: 500 });
 		}
+
+		ctx.waitUntil(
+			sendTransactionInputPrompt(payload, txPageId, env).catch((error: unknown) =>
+				console.warn('Telegram transaction input prompt failed:', error),
+			),
+		);
 
 		return new Response(JSON.stringify({ success: true }), {
 			status: 200,

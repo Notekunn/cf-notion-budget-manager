@@ -144,7 +144,7 @@ export async function ensureMonthlyBudget(notion: Client, budgetDbId: string, ja
 	}
 
 	const jars = await fetchJarConfigs(notion, jarsConfigDbId);
-	//await syncBudgetDbProperties(notion, budgetDbId, jars);
+	await syncBudgetDbProperties(notion, budgetDbId, jars);
 	return createMonthlyBudget(notion, budgetDbId, month, jars);
 }
 
@@ -152,7 +152,7 @@ export async function linkTransactionToBudget(notion: Client, txPageId: string, 
 	await notion.pages.update({
 		page_id: txPageId,
 		properties: {
-			Budget: {
+			'Monthly Budget': {
 				relation: [{ id: budgetPageId }],
 			},
 		},

@@ -13,6 +13,7 @@ function createNotionMock() {
 		dataSources: {
 			retrieve: vi.fn(),
 			query: vi.fn(),
+			update: vi.fn(),
 		},
 		databases: {
 			retrieve: vi.fn(),
@@ -32,6 +33,7 @@ describe('budget-service', () => {
 	beforeEach(() => {
 		notion.dataSources.retrieve.mockReset();
 		notion.dataSources.query.mockReset();
+		notion.dataSources.update.mockReset();
 		notion.databases.retrieve.mockReset();
 		notion.databases.update.mockReset();
 		notion.pages.create.mockReset();
@@ -79,7 +81,7 @@ describe('budget-service', () => {
 	it('syncBudgetDbProperties builds formula expressions', async () => {
 		await syncBudgetDbProperties(client, 'budget-db-1', [{ id: 'jar-1', name: 'Necessities', percent: 55 }]);
 
-		const args = notion.databases.update.mock.calls[0]?.[0] as { properties: Record<string, any> };
+		const args = notion.dataSources.update.mock.calls[0]?.[0] as { properties: Record<string, any> };
 		expect(args.properties['Total Income'].formula.expression).toContain('prop("Transactions")');
 		expect(args.properties['Necessities Budget'].formula.expression).toContain('prop("Necessities %")');
 		expect(args.properties['Necessities Actual'].formula.expression).toContain('current.prop("JAR")');
