@@ -82,12 +82,41 @@ function formatAmount(amount: number): string {
 	return new Intl.NumberFormat('en-US').format(amount);
 }
 
+function formatDateTimeGmt7(transactionDate: string): string {
+	const match = transactionDate.match(
+		/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:(Z)|([+-]\d{2}:\d{2}))?$/,
+	);
+	if (!match) {
+		return `${transactionDate} GMT +7`;
+	}
+
+	const [, year, month, day, hour, minute, second, zulu, offset] = match;
+	if (!zulu && !offset) {
+		return `${day}/${month}/${year} ${hour}:${minute}:${second} GMT +7`;
+	}
+
+	const parsed = new Date(transactionDate);
+	if (Number.isNaN(parsed.getTime())) {
+		return `${transactionDate} GMT +7`;
+	}
+
+	const gmt7 = new Date(parsed.getTime() + 7 * 60 * 60 * 1000);
+	return [
+		String(gmt7.getUTCDate()).padStart(2, '0'),
+		String(gmt7.getUTCMonth() + 1).padStart(2, '0'),
+		gmt7.getUTCFullYear(),
+	].join('/') + ` ${String(gmt7.getUTCHours()).padStart(2, '0')}:${String(gmt7.getUTCMinutes()).padStart(2, '0')}:${String(
+		gmt7.getUTCSeconds(),
+	).padStart(2, '0')} GMT +7`;
+}
+
 function formatPrompt(payload: SepayWebhookPayload): string {
 	const content = payload.content.trim() || `Transaction ${payload.id}`;
 	return [
 		'🆕 New transaction',
 		`🧾 Name: ${content}`,
 		`💵 Amount: ${formatAmount(payload.transferAmount)}`,
+		`🕒 Time: ${formatDateTimeGmt7(payload.transactionDate)}`,
 		`🔁 Type: ${payload.transferType.toUpperCase()}`,
 	].join('\n');
 }

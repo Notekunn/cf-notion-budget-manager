@@ -198,6 +198,8 @@ describe('telegram bot transaction flow', () => {
 
 		await sendTransactionInputPrompt(payload, 'tx-page-1', env);
 
+		const text = botMocks.sendTelegramMessage.mock.calls[0]?.[1] as string;
+		expect(text).toContain('🕒 Time: 05/03/2026 10:00:00 GMT +7');
 		expect(botMocks.sendTelegramMessage).toHaveBeenCalledWith(
 			env,
 			expect.stringContaining('New transaction'),
@@ -205,6 +207,15 @@ describe('telegram bot transaction flow', () => {
 				replyMarkup: { inline_keyboard: [[{ text: '✍️ Input', callback_data: 'tx:tx-page-1' }]] },
 			}),
 		);
+	});
+
+	it('converts ISO transaction time to GMT+7 in prompt', async () => {
+		const env = createEnv();
+
+		await sendTransactionInputPrompt({ ...payload, transactionDate: '2026-03-05T03:30:15Z' }, 'tx-page-1', env);
+
+		const text = botMocks.sendTelegramMessage.mock.calls[0]?.[1] as string;
+		expect(text).toContain('🕒 Time: 05/03/2026 10:30:15 GMT +7');
 	});
 
 	it('ignores callbacks from wrong chat', async () => {

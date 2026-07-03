@@ -155,7 +155,7 @@ export async function linkTransactionToBudget(notion: Client, txPageId: string, 
 	await notion.pages.update({
 		page_id: txPageId,
 		properties: {
-			'Monthly Budget': {
+			'Budget': {
 				relation: [{ id: budgetPageId }],
 			},
 		},

@@ -138,7 +138,7 @@ describe('budget-service', () => {
 			expect.objectContaining({
 				page_id: 'tx-page-1',
 				properties: {
-					'Monthly Budget': { relation: [{ id: 'budget-page-1' }] },
+					'Budget': { relation: [{ id: 'budget-page-1' }] },
 				},
 			})
 		);
