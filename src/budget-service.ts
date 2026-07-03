@@ -1,10 +1,11 @@
 import type { Client } from '@notionhq/client';
 import { resolveDataSourceId } from './notion-client';
-import { getNumberValue, getTitleValue } from './notion-helpers';
+import { getNumberValue, getPageEmojiIcon, getTitleValue } from './notion-helpers';
 
 export interface JarConfig {
 	id: string;
 	name: string;
+	icon?: string;
 	percent: number;
 }
 
@@ -38,9 +39,11 @@ export async function fetchJarConfigs(notion: Client, jarsConfigDbId: string): P
 			if (!name) {
 				continue;
 			}
+			const icon = getPageEmojiIcon(result);
 			jars.push({
 				id: result.id,
 				name,
+				...(icon ? { icon } : {}),
 				percent: getNumberValue(properties as Record<string, any>, 'Percent'),
 			});
 		}

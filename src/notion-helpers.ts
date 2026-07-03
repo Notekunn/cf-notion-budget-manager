@@ -14,3 +14,19 @@ export function getNumberValue(properties: Record<string, any>, key: string): nu
 	const value = properties[key]?.number;
 	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
+
+export function getPageEmojiIcon(page: unknown): string | undefined {
+	if (typeof page !== 'object' || page === null || !('icon' in page)) {
+		return undefined;
+	}
+	const icon = (page as { icon?: unknown }).icon;
+	if (typeof icon !== 'object' || icon === null) {
+		return undefined;
+	}
+	const typedIcon = icon as { type?: unknown; emoji?: unknown };
+	if (typedIcon.type !== 'emoji' || typeof typedIcon.emoji !== 'string') {
+		return undefined;
+	}
+	const emoji = typedIcon.emoji.trim();
+	return emoji || undefined;
+}

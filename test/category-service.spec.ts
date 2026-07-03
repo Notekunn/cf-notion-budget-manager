@@ -29,7 +29,7 @@ describe('category-service', () => {
 		notion.dataSources.query
 			.mockResolvedValueOnce({
 				results: [
-					{ id: 'cat-1', properties: { Name: { title: [{ plain_text: 'Food' }] } } },
+					{ id: 'cat-1', icon: { type: 'emoji', emoji: '🍜' }, properties: { Name: { title: [{ plain_text: 'Food' }] } } },
 					{ id: 'cat-empty', properties: { Name: { title: [] } } },
 				],
 				has_more: true,
@@ -42,7 +42,7 @@ describe('category-service', () => {
 			});
 
 		await expect(fetchCategories(client, 'category-ds')).resolves.toEqual([
-			{ id: 'cat-1', name: 'Food' },
+			{ id: 'cat-1', name: 'Food', icon: '🍜' },
 			{ id: 'cat-2', name: 'Transport' },
 		]);
 		expect(notion.dataSources.query).toHaveBeenCalledTimes(2);

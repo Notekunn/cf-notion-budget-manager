@@ -47,6 +47,7 @@ describe('budget-service', () => {
 				results: [
 					{
 						id: 'jar-1',
+						icon: { type: 'emoji', emoji: '🏠' },
 						properties: {
 							Name: { title: [{ plain_text: 'Necessities' }] },
 							Percent: { number: 55 },
@@ -72,7 +73,7 @@ describe('budget-service', () => {
 
 		const jars = await fetchJarConfigs(client, 'jars-ds-1');
 		expect(jars).toEqual([
-			{ id: 'jar-1', name: 'Necessities', percent: 55 },
+			{ id: 'jar-1', name: 'Necessities', icon: '🏠', percent: 55 },
 			{ id: 'jar-2', name: 'Education', percent: 10 },
 		]);
 		expect(notion.dataSources.query).toHaveBeenCalledTimes(2);

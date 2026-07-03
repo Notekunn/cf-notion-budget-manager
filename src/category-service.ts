@@ -1,10 +1,11 @@
 import type { Client } from '@notionhq/client';
 import { resolveDataSourceId } from './notion-client';
-import { getTitleValue } from './notion-helpers';
+import { getPageEmojiIcon, getTitleValue } from './notion-helpers';
 
 export interface NotionOption {
 	id: string;
 	name: string;
+	icon?: string;
 }
 
 export async function fetchCategories(notion: Client, categoryDbId: string): Promise<NotionOption[]> {
@@ -26,7 +27,8 @@ export async function fetchCategories(notion: Client, categoryDbId: string): Pro
 			}
 			const name = getTitleValue(properties, 'Name');
 			if (name) {
-				categories.push({ id: result.id, name });
+				const icon = getPageEmojiIcon(result);
+				categories.push({ id: result.id, name, ...(icon ? { icon } : {}) });
 			}
 		}
 

@@ -50,16 +50,19 @@ interface TelegramUpdate {
 }
 
 const TELEGRAM_SECRET_HEADER = 'X-Telegram-Bot-Api-Secret-Token';
+const CATEGORY_ICON = '🏷️';
+const JAR_ICON = '🏦';
 
 function isAllowedChat(env: TelegramBotEnv, chatId: string | number): boolean {
 	return String(chatId) === env.TELEGRAM_CHAT_ID;
 }
 
 function rowsFromOptions(prefix: string, options: NotionOption[]): TelegramInlineKeyboardMarkup {
+	const fallbackIcon = prefix === 'cat' ? CATEGORY_ICON : JAR_ICON;
 	return {
 		inline_keyboard: [
-			...options.map((option) => [{ text: option.name, callback_data: `${prefix}:${option.id}` }]),
-			[{ text: 'Cancel', callback_data: 'cancel' }],
+			...options.map((option) => [{ text: `${option.icon ?? fallbackIcon} ${option.name}`, callback_data: `${prefix}:${option.id}` }]),
+			[{ text: '❌ Cancel', callback_data: 'cancel' }],
 		],
 	};
 }
@@ -68,8 +71,8 @@ function confirmKeyboard(): TelegramInlineKeyboardMarkup {
 	return {
 		inline_keyboard: [
 			[
-				{ text: 'Confirm', callback_data: 'confirm' },
-				{ text: 'Cancel', callback_data: 'cancel' },
+				{ text: '✅ Confirm', callback_data: 'confirm' },
+				{ text: '❌ Cancel', callback_data: 'cancel' },
 			],
 		],
 	};
@@ -82,10 +85,10 @@ function formatAmount(amount: number): string {
 function formatPrompt(payload: SepayWebhookPayload): string {
 	const content = payload.content.trim() || `Transaction ${payload.id}`;
 	return [
-		'New transaction',
-		`Name: ${content}`,
-		`Amount: ${formatAmount(payload.transferAmount)}`,
-		`Type: ${payload.transferType.toUpperCase()}`,
+		'🆕 New transaction',
+		`🧾 Name: ${content}`,
+		`💵 Amount: ${formatAmount(payload.transferAmount)}`,
+		`🔁 Type: ${payload.transferType.toUpperCase()}`,
 	].join('\n');
 }
 
@@ -148,7 +151,7 @@ async function startInputFlow(env: TelegramBotEnv, callbackQuery: TelegramCallba
 		return;
 	}
 
-	const sent = await sendTelegramMessage(env, 'Enter transaction name', { chatId });
+	const sent = await sendTelegramMessage(env, '✍️ Enter transaction name', { chatId });
 	const activeAfterPrompt = await getActiveTransactionState(env, chatId);
 	if (activeAfterPrompt) {
 		try {
@@ -174,13 +177,13 @@ async function startInputFlow(env: TelegramBotEnv, callbackQuery: TelegramCallba
 async function sendCategoryChoices(env: TelegramBotEnv, chatId: string | number): Promise<void> {
 	const notion = createNotionClient(env.NOTION_TOKEN);
 	const categories = await fetchCategories(notion, env.NOTION_CATEGORY_DB_ID);
-	await sendTrackedMessage(env, chatId, 'Choose category', rowsFromOptions('cat', categories));
+	await sendTrackedMessage(env, chatId, `${CATEGORY_ICON} Choose category`, rowsFromOptions('cat', categories));
 }
 
 async function sendJarChoices(env: TelegramBotEnv, chatId: string | number): Promise<void> {
 	const notion = createNotionClient(env.NOTION_TOKEN);
 	const jars = await fetchJarConfigs(notion, env.NOTION_JARS_CONFIG_DB_ID);
-	await sendTrackedMessage(env, chatId, 'Choose JAR', rowsFromOptions('jar', jars));
+	await sendTrackedMessage(env, chatId, `${JAR_ICON} Choose JAR`, rowsFromOptions('jar', jars));
 }
 
 async function handleNameMessage(env: TelegramBotEnv, message: TelegramMessage): Promise<void> {
@@ -196,7 +199,7 @@ async function handleNameMessage(env: TelegramBotEnv, message: TelegramMessage):
 	const name = message.text?.trim() ?? '';
 	await putActiveTransactionState(env, { ...state, messageIds: [...new Set([...state.messageIds, message.message_id])] });
 	if (!name) {
-		await sendTrackedMessage(env, chatId, 'Name cannot be empty');
+		await sendTrackedMessage(env, chatId, '⚠️ Name cannot be empty');
 		return;
 	}
 
@@ -271,9 +274,12 @@ async function selectJar(env: TelegramBotEnv, callbackQuery: TelegramCallbackQue
 	await sendTrackedMessage(
 		env,
 		chatId,
-		[`Confirm transaction`, `Name: ${state.transactionName ?? ''}`, `Category: ${state.category?.name ?? ''}`, `JAR: ${jar.name}`].join(
-			'\n',
-		),
+		[
+			'✅ Confirm transaction',
+			`🧾 Name: ${state.transactionName ?? ''}`,
+			`${CATEGORY_ICON} Category: ${state.category?.name ?? ''}`,
+			`${JAR_ICON} JAR: ${jar.name}`,
+		].join('\n'),
 		confirmKeyboard(),
 	);
 	await answerCallbackQuerySafe(env, callbackQuery.id, jar.name);
@@ -328,7 +334,7 @@ async function confirmFlow(env: TelegramBotEnv, callbackQuery: TelegramCallbackQ
 		);
 	} catch (error: unknown) {
 		console.warn('Telegram transaction update failed:', error);
-		await sendTrackedMessage(env, chatId, 'Update failed. Try confirm again or cancel.', confirmKeyboard());
+		await sendTrackedMessage(env, chatId, '⚠️ Update failed. Try confirm again or cancel.', confirmKeyboard());
 		return;
 	}
 
@@ -378,7 +384,7 @@ export async function sendTransactionInputPrompt(
 
 	await sendTelegramMessage(env, formatPrompt(payload), {
 		replyMarkup: {
-			inline_keyboard: [[{ text: 'Input', callback_data: `tx:${txPageId}` }]],
+			inline_keyboard: [[{ text: '✍️ Input', callback_data: `tx:${txPageId}` }]],
 		},
 	});
 }

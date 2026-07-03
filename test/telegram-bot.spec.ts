@@ -155,9 +155,9 @@ beforeEach(() => {
 	botMocks.deleteTelegramMessage.mockReset();
 	botMocks.deleteTelegramMessage.mockResolvedValue(undefined);
 	botMocks.fetchCategories.mockReset();
-	botMocks.fetchCategories.mockResolvedValue([{ id: 'cat-1', name: 'Food' }]);
+	botMocks.fetchCategories.mockResolvedValue([{ id: 'cat-1', name: 'Food', icon: '🍜' }]);
 	botMocks.fetchJarConfigs.mockReset();
-	botMocks.fetchJarConfigs.mockResolvedValue([{ id: 'jar-1', name: 'NEC', percent: 55 }]);
+	botMocks.fetchJarConfigs.mockResolvedValue([{ id: 'jar-1', name: 'NEC', icon: '🏠', percent: 55 }]);
 	botMocks.updateTransactionDetails.mockReset();
 	botMocks.updateTransactionDetails.mockResolvedValue(undefined);
 	botMocks.createNotionClient.mockReset();
@@ -202,7 +202,7 @@ describe('telegram bot transaction flow', () => {
 			env,
 			expect.stringContaining('New transaction'),
 			expect.objectContaining({
-				replyMarkup: { inline_keyboard: [[{ text: 'Input', callback_data: 'tx:tx-page-1' }]] },
+				replyMarkup: { inline_keyboard: [[{ text: '✍️ Input', callback_data: 'tx:tx-page-1' }]] },
 			}),
 		);
 	});
@@ -279,7 +279,7 @@ describe('telegram bot transaction flow', () => {
 
 		await expect(getActiveTransactionState(env, '123')).resolves.toEqual(expect.objectContaining({ step: 'await_name' }));
 		expect(botMocks.fetchCategories).not.toHaveBeenCalled();
-		expect(botMocks.sendTelegramMessage).toHaveBeenLastCalledWith(env, 'Name cannot be empty', expect.any(Object));
+		expect(botMocks.sendTelegramMessage).toHaveBeenLastCalledWith(env, '⚠️ Name cannot be empty', expect.any(Object));
 	});
 
 	it('ignores stale category callbacks before name entry', async () => {
@@ -311,6 +311,50 @@ describe('telegram bot transaction flow', () => {
 		expect(botMocks.deleteTelegramMessage).toHaveBeenCalled();
 	});
 
+	it('uses Notion emoji icons in category and JAR buttons', async () => {
+		const env = createEnv();
+		const { ctx } = createCtx();
+
+		await handleTelegramWebhook(requestFor(callbackUpdate('cb-start', 'tx:tx-page-1', 10)), env, ctx);
+		await handleTelegramWebhook(
+			requestFor({
+				message: {
+					message_id: 11,
+					chat: { id: 123 },
+					text: 'Lunch with team',
+				},
+			}),
+			env,
+			ctx,
+		);
+		await handleTelegramWebhook(requestFor(callbackUpdate('cb-cat', 'cat:cat-1', 101)), env, ctx);
+
+		expect(botMocks.sendTelegramMessage).toHaveBeenCalledWith(
+			env,
+			'🏷️ Choose category',
+			expect.objectContaining({
+				replyMarkup: {
+					inline_keyboard: [
+						[{ text: '🍜 Food', callback_data: 'cat:cat-1' }],
+						[{ text: '❌ Cancel', callback_data: 'cancel' }],
+					],
+				},
+			}),
+		);
+		expect(botMocks.sendTelegramMessage).toHaveBeenCalledWith(
+			env,
+			'🏦 Choose JAR',
+			expect.objectContaining({
+				replyMarkup: {
+					inline_keyboard: [
+						[{ text: '🏠 NEC', callback_data: 'jar:jar-1' }],
+						[{ text: '❌ Cancel', callback_data: 'cancel' }],
+					],
+				},
+			}),
+		);
+	});
+
 	it('keeps state when confirm update fails', async () => {
 		const env = createEnv();
 		const { ctx } = createCtx();
@@ -325,7 +369,7 @@ describe('telegram bot transaction flow', () => {
 		expect(botMocks.deleteTelegramMessage).not.toHaveBeenCalled();
 		expect(botMocks.sendTelegramMessage).toHaveBeenLastCalledWith(
 			env,
-			'Update failed. Try confirm again or cancel.',
+			'⚠️ Update failed. Try confirm again or cancel.',
 			expect.objectContaining({
 				replyMarkup: expect.objectContaining({
 					inline_keyboard: expect.any(Array),
